@@ -44,11 +44,20 @@ c1.metric("Giá", f"{last['Close']:,.2f}")
 c2.metric("RSI14", f"{last['RSI14']:.2f}")
 c3.metric("EMA200", f"{last['EMA200']:,.2f}")
 
-# Vẽ biểu đồ
-fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_width=[0.3, 0.7])
-fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Nến"), row=1, col=1)
-fig.add_trace(go.Scatter(x=df.index, y=df['EMA200'], line=dict(color='cyan'), name="EMA200"), row=1, col=1)
-fig.add_trace(go.Scatter(x=df.index, y=df['RSI14'], line=dict(color='magenta'), name="RSI"), row=2, col=1)
+# Điều chỉnh chiều cao tổng thể lên 1000 hoặc cao hơn tùy ý fen
+fig.update_layout(
+    height=1000, 
+    template="plotly_dark", 
+    xaxis_rangeslider_visible=False,
+    margin=dict(l=10, r=10, t=30, b=10), # Giảm lề để biểu đồ tràn viền
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1) # Đưa chú thích lên trên
+)
+
+# Làm cho nến Nhật trông to và rõ hơn
+fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])]) # Bỏ khoảng trống cuối tuần nếu là Vàng
+
+st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
 
 fig.update_layout(height=600, template="plotly_dark", xaxis_rangeslider_visible=False)
 st.plotly_chart(fig, use_container_width=True)
