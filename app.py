@@ -4,71 +4,82 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# 1. Cấu hình giao diện và ÉP TRÌNH DUYỆT ƯU TIÊN ZOOM CHO BIỂU ĐỒ
-st.set_page_config(page_title="Gemini Pro Trading", layout="wide")
+# 1. CẤU HÌNH GIAO DIỆN CỰC GỌN
+st.set_page_config(page_title="Gemini Trading", layout="wide")
+
+# CSS để ép zoom và fix hiển thị nến
 st.markdown("""
     <style>
-    .block-container {padding: 0.5rem 0.2rem !important;}
-    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
-    [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
-    div[data-testid="stMetric"] { padding: 5px !important; background-color: #1e2130; border-radius: 5px; }
+    .block-container {padding: 0.5rem !important;}
+    [data-testid="stMetricValue"] { font-size: 1.0rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 0.7rem !important; }
+    div[data-testid="stMetric"] { padding: 2px 10px !important; background-color: #1e2130; border-radius: 5px; }
     
-    /* ĐOẠN QUAN TRỌNG: Ép trình duyệt không được tự ý zoom trang web để dành quyền cho biểu đồ */
+    /* ÉP TRÌNH DUYỆT CHO PHÉP ZOOM TRONG BIỂU ĐỒ */
     .stPlotlyChart { 
-        touch-action: none !important; 
-        -ms-touch-action: none !important;
-        user-select: none !important;
+        touch-action: pinch-zoom pan-x pan-y !important;
     }
+    iframe { pointer-events: auto !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Sidebar chọn thông số
+# 2. Sidebar
 st.sidebar.header("Cài đặt")
 assets = {"BTC": "BTC-USD", "Vàng": "XAUT-USD"}
 symbol = st.sidebar.selectbox("Tài sản:", list(assets.keys()))
 tf_options = {"1 Giờ": "1h", "4 Giờ": "4h", "1 Ngày": "1d"}
-selected_tf = st.sidebar.selectbox("Khung thời gian:", list(tf_options.keys()))
+selected_tf = st.sidebar.selectbox("Khung:", list(tf_options.keys()))
 
 # 3. Lấy dữ liệu
 data = yf.download(assets[symbol], period="1mo" if tf_options[selected_tf] != "1d" else "1y", interval=tf_options[selected_tf])
-if isinstance(data.columns, pd.MultiIndex):
-    data.columns = data.columns.get_level_values(0)
+if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.get_level_values(0)
 
-# 4. Tính toán chỉ báo
+# 4. Chỉ báo
 data['EMA200'] = data['Close'].ewm(span=200, adjust=False).mean()
-delta = data['Close'].diff()
-gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+delta = data['Close'].diff(); gain = (delta.where(delta > 0, 0)).rolling(14).mean(); loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
 data['RSI14'] = 100 - (100 / (1 + (gain / loss)))
 last = data.iloc[-1]
 
-# 5. Hiển thị thông số (Metric)
+# 5. Metric (Gọn hơn nữa)
 c1, c2, c3 = st.columns(3)
 c1.metric("Giá", f"{last['Close']:,.1f}")
 c2.metric("RSI", f"{last['RSI14']:.1f}")
 c3.metric("EMA200", f"{last['EMA200']:,.1f}")
 
-# 6. Vẽ biểu đồ
-fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_width=[0.25, 0.75])
+# 6. BIỂU ĐỒ - TĂNG CƯỜNG HIỂN THỊ TRUNG TÂM
+# Chỉnh vertical_spacing cực nhỏ để nến không bị đẩy đi xa
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.01, row_width=[0.2, 0.8])
 
-fig.add_trace(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name="Nến"), row=1, col=1)
+# Nến
+fig.add_trace(go.Candlestick(
+    x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], 
+    name="Nến", increasing_line_color='#26a69a', decreasing_line_color='#ef5350'
+), row=1, col=1)
+
+# EMA200
 fig.add_trace(go.Scatter(x=data.index, y=data['EMA200'], line=dict(color='#00ffff', width=1.5), name="EMA200"), row=1, col=1)
-fig.add_trace(go.Scatter(x=data.index, y=data['RSI14'], line=dict(color='#ff00ff', width=1.5), name="RSI"), row=2, col=1)
 
-# 7. Cấu hình tương tác
+# RSI
+fig.add_trace(go.Scatter(x=data.index, y=data['RSI14'], line=dict(color='#ff00ff', width=1), name="RSI"), row=2, col=1)
+
+# 7. CẤU HÌNH ZOOM VÀ HIỂN THỊ
 fig.update_layout(
-    height=550, # Chiều cao vừa vặn cho điện thoại
+    height=500, # Chiều cao vừa đẹp để không bị trôi
     template="plotly_dark",
     xaxis_rangeslider_visible=False,
-    dragmode='pan', # 1 ngón để di chuyển
-    margin=dict(l=0, r=0, t=10, b=0),
-    hovermode='x unified'
+    dragmode='zoom', # Để mặc định là zoom để fen dễ thao tác hơn
+    margin=dict(l=10, r=10, t=10, b=10),
+    hovermode='x unified',
+    legend=dict(visible=False) # Ẩn chú thích để rộng chỗ
 )
 
-# 8. Render biểu đồ với cấu hình scrollZoom cưỡng bức
+# Cố định vùng hiển thị vào các nến cuối cùng
+fig.update_xaxes(range=[data.index[-50], data.index[-1]], row=1, col=1)
+
+# 8. Render với Config ép Zoom
 st.plotly_chart(fig, use_container_width=True, config={
-    'scrollZoom': True,      # Zoom 2 ngón
-    'displayModeBar': False, # Ẩn thanh công cụ
-    'responsive': True,
-    'staticPlot': False
+    'scrollZoom': True,
+    'displayModeBar': True, # Hiện thanh công cụ để fen chọn lại chế độ Pan nếu muốn
+    'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+    'responsive': True
 })
